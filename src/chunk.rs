@@ -1,9 +1,14 @@
 use value::Value;
 use value::ValueArray;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum OpCode {
     OpConstant(usize),
+    OpAdd,
+    OpSubtract,
+    OpMultiply,
+    OpDivide,
+    OpNegate,
     OpReturn,
 }
 
