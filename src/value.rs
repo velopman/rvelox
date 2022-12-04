@@ -1,25 +1,16 @@
-pub type Value = f64;
-
-pub struct ValueArray {
-    pub values: Vec<Value>,
+#[derive(Clone, Copy)]
+pub enum Value {
+    Nil,
+    Bool(bool),
+    Number(f64),
 }
 
-impl ValueArray {
-    pub fn new() -> ValueArray {
-        ValueArray {
-            values: Vec::new(),
+impl Value {
+    pub fn print(&self) -> () {
+        match self {
+            Value::Nil => print!("nil"),
+            Value::Bool(value) => print!("{value}"),
+            Value::Number(value) => print!("{value}"),
         }
-    }
-
-    pub fn count(&mut self) -> usize {
-        return self.values.len();
-    }
-
-    pub fn free(&mut self) -> () {
-        self.values.clear();
-    }
-
-    pub fn write(&mut self, value: Value) -> () {
-        self.values.push(value);
     }
 }

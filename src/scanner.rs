@@ -1,6 +1,6 @@
-use std::{fmt};
+use std::str::Chars;
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum TokenType {
     // Single character tokens
     LeftParen,
@@ -12,7 +12,7 @@ pub enum TokenType {
     Semicolon,
     Plus,
     Minus,
-    Salsh,
+    Slash,
     Star,
 
     // One or two-character tokens
@@ -48,44 +48,36 @@ pub enum TokenType {
     String,
     Identifier,
 
-    Error(String),
+    Error,
     Eof,
 }
 
-impl fmt::Display for TokenType {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "{:?}", self)
-    }
-}
-
-pub struct Token {
+#[derive(Debug, Clone, Copy)]
+pub struct Token<'a> {
     pub token_type: TokenType,
-    pub start: usize,
-    pub length: usize,
+    pub lexeme: &'a str,
     pub line: usize,
 }
 
 pub struct Scanner<'a> {
-    pub source: &'a String,
+    pub start: Chars<'a>,
+    pub current: Chars<'a>,
     pub line: usize,
-    pub start: usize,
-    pub current: usize,
 }
 
 impl<'a> Scanner<'a> {
-    pub fn new(source: &'a String) -> Scanner<'a> {
+    pub fn new(source: &'a str) -> Scanner {
         return Scanner {
-            source,
+            start: source.chars(),
+            current: source.chars(),
             line: 1,
-            start: 0,
-            current: 0,
         };
     }
 
-    pub fn scan_token(&mut self) -> Token {
+    pub fn scan_token(&mut self) -> Token<'a> {
         self.skip_whitespace();
 
-        self.start = self.current;
+        self.start = self.current.clone();
 
         if self.is_at_end() {
             return self.make_token(TokenType::Eof);
@@ -109,9 +101,9 @@ impl<'a> Scanner<'a> {
             '.' => return self.make_token(TokenType::Dot),
             ',' => return self.make_token(TokenType::Comma),
             ';' => return self.make_token(TokenType::Semicolon),
-            '-' => return self.make_token(TokenType::Plus),
-            '+' => return self.make_token(TokenType::Minus),
-            '/' => return self.make_token(TokenType::Salsh),
+            '+' => return self.make_token(TokenType::Plus),
+            '-' => return self.make_token(TokenType::Minus),
+            '/' => return self.make_token(TokenType::Slash),
             '*' => return self.make_token(TokenType::Star),
             '!' => (
                 if self.match_character('=') {
@@ -150,25 +142,30 @@ impl<'a> Scanner<'a> {
     }
 
     fn advance(&mut self) -> char {
-        self.current += 1;
+        let previous: char = self.peek();
 
-        return self.source.chars().nth(self.current - 1).unwrap();
+        self.current.next();
+
+        return previous;
     }
 
-    fn check_keyword(&self, start: usize, length: usize, rest: &str, token_type: TokenType) -> TokenType {
-        if self.current - self.start == start + length &&
-           self.source.chars().skip(start).take(length).collect::<String>() == rest.to_string() {
+    fn check_keyword(&self, start: usize, rest: &str, token_type: TokenType) -> TokenType {
+        if &self.lexeme()[start..] == rest {
             return token_type;
         }
 
         return TokenType::Identifier;
     }
 
-    fn error_token(&mut self, message: &str) -> Token {
-        return self.make_token(TokenType::Error(message.to_string()));
+    fn error_token(&mut self, message: &'static str) -> Token<'a> {
+        return Token {
+            token_type: TokenType::Error,
+            lexeme: message,
+            line: self.line,
+        };
     }
 
-    fn identifier(&mut self) -> Token {
+    fn identifier(&mut self) -> Token<'a> {
         while self.is_alpha(self.peek()) || self.is_digit(self.peek()) {
             self.advance();
         }
@@ -177,44 +174,41 @@ impl<'a> Scanner<'a> {
     }
 
     fn identifier_type(&self) -> TokenType {
-        match self.source.chars().nth(self.start).unwrap() {
-            'a' => self.check_keyword(1, 2, "nd", TokenType::And),
-            'c' => self.check_keyword(1, 4, "lass", TokenType::Class),
-            'e' => self.check_keyword(1, 3, "lse", TokenType::Else),
+        match self.start.as_str().as_bytes()[0] as char {
+            'a' => return self.check_keyword(1, "nd", TokenType::And),
+            'c' => return self.check_keyword(1, "lass", TokenType::Class),
+            'e' => return self.check_keyword(1, "lse", TokenType::Else),
             'f' => {
-                if self.current - self.start > 1 {
-                    match self.source.chars().nth(self.start + 1).unwrap() {
-                        'a' => self.check_keyword(2, 3, "lse", TokenType::False),
-                        'o' => self.check_keyword(2, 1, "r", TokenType::For),
-                        'u' => self.check_keyword(2, 1, "n", TokenType::Fun),
-                        _ => TokenType::Identifier,
+                if self.start.as_str().len() > 1 {
+                    match self.start.as_str().as_bytes()[1] as char {
+                        'a' => return self.check_keyword(2, "lse", TokenType::False),
+                        'o' => return self.check_keyword(2, "r", TokenType::For),
+                        'u' => return self.check_keyword(2, "n", TokenType::Fun),
+                        _ => (),
                     }
-                } else {
-                    TokenType::Identifier
                 }
             },
-            'i' => self.check_keyword(1, 1, "f", TokenType::If),
-            'n' => self.check_keyword(1, 2, "il", TokenType::Nil),
-            'o' => self.check_keyword(1, 1, "r", TokenType::Or),
-            'p' => self.check_keyword(1, 4, "rint", TokenType::Print),
-            'r' => self.check_keyword(1, 5, "eturn", TokenType::Return),
-            's' => self.check_keyword(1, 4, "uper", TokenType::Super),
+            'i' => return self.check_keyword(1, "f", TokenType::If),
+            'n' => return self.check_keyword(1, "il", TokenType::Nil),
+            'o' => return self.check_keyword(1, "r", TokenType::Or),
+            'p' => return self.check_keyword(1, "rint", TokenType::Print),
+            'r' => return self.check_keyword(1, "eturn", TokenType::Return),
+            's' => return self.check_keyword(1, "uper", TokenType::Super),
             't' => {
-                if self.current - self.start > 1 {
-                    match self.source.chars().nth(self.start + 1).unwrap() {
-                        'h' => self.check_keyword(2, 3, "is", TokenType::This),
-                        'r' => self.check_keyword(2, 1, "ue", TokenType::True),
-                        _ => TokenType::Identifier,
+                if self.start.as_str().len() > 1 {
+                    match self.start.as_str().as_bytes()[1] as char {
+                        'h' => return self.check_keyword(2, "is", TokenType::This),
+                        'r' => return self.check_keyword(2, "ue", TokenType::True),
+                        _ => (),
                     }
-                } else {
-                    TokenType::Identifier
                 }
             },
-            'v' => self.check_keyword(1, 2, "ar", TokenType::Var),
-            'w' => self.check_keyword(1, 4, "hile", TokenType::While),
-
-            _ => TokenType::Identifier,
+            'v' => return self.check_keyword(1, "ar", TokenType::Var),
+            'w' => return self.check_keyword(1, "hile", TokenType::While),
+            _ => (),
         }
+
+        return TokenType::Identifier
     }
 
     fn is_alpha(&self, character: char) -> bool {
@@ -224,38 +218,36 @@ impl<'a> Scanner<'a> {
     }
 
     fn is_at_end(&self) -> bool {
-        return self.current == self.source.len();
+        return self.current.as_str().len() == 0;
     }
 
     fn is_digit(&self, character: char) -> bool {
         return character >= '0' && character <= '9';
     }
 
-    fn make_token(&mut self, token_type: TokenType) -> Token {
+    fn lexeme(&self) -> &'a str {
+        let end: usize = self.start.as_str().len() - self.current.as_str().len();
+        &self.start.as_str()[0..end]
+    }
+
+    fn make_token(&self, token_type: TokenType) -> Token<'a> {
         return Token {
             token_type: token_type,
-            start: self.start,
-            length: self.current - self.start,
+            lexeme: &self.lexeme(),
             line: self.line,
-            // literal: LiteralValue()
         };
     }
 
     fn match_character(&mut self, expected: char) -> bool {
-        if self.is_at_end() {
-            return false;
+        if !self.is_at_end() && self.peek() == expected {
+            self.advance();
+            return true;
         }
 
-        if self.source.chars().nth(self.current).unwrap() != expected {
-            return false;
-        }
-
-        self.current += 1;
-
-        return true;
+        return false;
     }
 
-    fn number(&mut self) -> Token {
+    fn number(&mut self) -> Token<'a> {
         while self.is_digit(self.peek()) {
             self.advance();
         }
@@ -272,15 +264,19 @@ impl<'a> Scanner<'a> {
     }
 
     fn peek(&self) -> char {
-        return self.source.chars().nth(self.current).unwrap();
-    }
-
-    fn peek_next(&self) -> char {
         if self.is_at_end() {
             return '\0';
         }
 
-        return self.source.chars().nth(self.current).unwrap();
+        return self.current.as_str().as_bytes()[0] as char;
+    }
+
+    fn peek_next(&self) -> char {
+        if self.current.as_str().len() < 2 {
+            return '\0';
+        }
+
+        return self.current.as_str().as_bytes()[1] as char;
     }
 
     fn skip_whitespace(&mut self) -> () {
@@ -288,27 +284,26 @@ impl<'a> Scanner<'a> {
             match self.peek() {
                 ' ' | '\r' | '\t' => {
                     self.advance();
-                    return;
                 }
                 '\n' => {
                     self.line += 1;
                     self.advance();
-                    return;
                 }
                 '/' => {
                     if self.peek_next() == '/' {
                         while self.peek() != '\n' && !self.is_at_end() {
                             self.advance();
                         }
+                    } else {
+                        return;
                     }
-                    return;
                 }
                 _ => return,
             }
         }
     }
 
-    fn string(&mut self) -> Token {
+    fn string(&mut self) -> Token<'a> {
         while self.peek() != '"' && !self.is_at_end() {
             if self.peek() == '\n' {
                 self.line += 1;

@@ -1,61 +1,61 @@
-use chunk::Chunk;
-use chunk::OpCode;
-use value::Value;
+use std::convert::TryInto;
+
+use chunk::{Chunk, Op};
 
 pub static DEBUG_TRACE_EXECUTION: bool = true;
+pub static DEBUG_PRINT_CODE: bool = false;
 
-pub fn dissassemble_chunk(chunk: &Chunk, name: &str) -> () {
-    println!("== {name} ==");
+impl Chunk {
+    pub fn dissassemble_chunk(&self, name: &str) -> () {
+        println!("== {name} ==");
 
-    let mut offset: usize = 0;
-    while offset < chunk.code.len() {
-        offset = dissassemble_instruction(chunk, offset);
-    }
-}
-
-pub fn dissassemble_instruction(chunk: &Chunk, offset: usize) -> usize {
-    print!("{offset:0>4} ");
-
-    let line: i32 = chunk.lines[offset];
-    if offset > 0 && line == chunk.lines[offset - 1] {
-        print!("   | ");
-    } else {
-        print!("{line:>4} ");
+        let mut offset: usize = 0;
+        while offset < self.code.len() {
+            offset = self.dissassemble_instruction(offset);
+        }
     }
 
-    let instruction: &OpCode = &chunk.code[offset];
-    return match instruction {
-        OpCode::OpReturn => simple_instruction("OP_RETURN", offset),
-        OpCode::OpAdd => simple_instruction("OP_ADD", offset),
-        OpCode::OpSubtract => simple_instruction("OP_SUBTRACT", offset),
-        OpCode::OpMultiply => simple_instruction("OP_MULTIPLY", offset),
-        OpCode::OpDivide => simple_instruction("OP_DIVIDE", offset),
-        OpCode::OpNegate => simple_instruction("OP_NEGATE", offset),
-        OpCode::OpConstant(constant) => constant_instruction("OP_CONSTANT", chunk, *constant, offset),
-        // _ => {
-        //     println!("Unknown opcode {:?}", *instruction);
+    pub fn dissassemble_instruction(&self, offset: usize) -> usize {
+        print!("{offset:04} ");
 
-        //     offset + 1
-        // }
+        if offset > 0 && self.lines[offset] == self.lines[offset - 1] {
+            print!("   | ");
+        } else {
+            print!("{:>4} ", self.lines[offset]);
+        }
+
+        let instruction: u8 = self.code[offset];
+        let op_code: Result<Op, ()> = instruction.try_into();
+        return match op_code {
+            Ok(op_code) => match op_code {
+                Op::Constant => self.constant_instruction("OP_CONSTANT", offset),
+                Op::Add => self.simple_instruction("OP_ADD", offset),
+                Op::Subtract => self.simple_instruction("OP_SUBTRACT", offset),
+                Op::Multiply => self.simple_instruction("OP_MULTIPLY", offset),
+                Op::Divide => self.simple_instruction("OP_DIVIDE", offset),
+                Op::Negate => self.simple_instruction("OP_NEGATE", offset),
+                Op::Return => self.simple_instruction("OP_RETURN", offset),
+            },
+            _ => {
+                println!("Unknown opcode {}", instruction);
+                offset + 1
+            }
+        }
     }
-}
 
-fn constant_instruction(name: &str, chunk: &Chunk, constant: usize, offset: usize) -> usize {
-    print!("{name:<16} {constant:>4} '");
+    fn constant_instruction(&self, name: &str, offset: usize) -> usize {
+        let constant: u8 = self.code[offset + 1];
 
-    print_value(chunk.constants.values[constant]);
+        print!("{name:<16} {constant:>4} '");
+        self.constants[constant as usize].print();
+        println!("'");
 
-    println!("'");
+        return offset + 2;
+    }
 
-    return offset + 1;
-}
+    fn simple_instruction(&self, name: &str, offset: usize) -> usize {
+        println!("{name}");
 
-pub fn print_value(value: Value) -> () {
-    print!("{value}");
-}
-
-fn simple_instruction(name: &str, offset: usize) -> usize {
-    println!("{name}");
-
-    return offset + 1;
+        return offset + 1;
+    }
 }

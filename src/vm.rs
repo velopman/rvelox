@@ -1,63 +1,80 @@
-use std::slice;
-
-use chunk::{Chunk, OpCode};
-use value::{Value};
-use debug::{
-    DEBUG_TRACE_EXECUTION,
-    dissassemble_instruction,
-    print_value,
+use std::{
+    convert::TryInto,
+    slice
 };
 
+use chunk::{Chunk, Op};
+use compiler::Compiler;
+use debug::DEBUG_TRACE_EXECUTION;
+use value::Value;
+
 pub enum InterpretResult {
-    InterpretOk,
-    InterpretCompileError,
-    InterpretRuntimeError,
+    Ok,
+    CompileError,
+    RuntimeError,
 }
 
 const STACK_MAX: usize = 256;
 
-pub struct VM<'a> {
-    pub chunk: &'a Chunk,
-    pub ip: slice::Iter<'a, OpCode>,
-    pub stack: Vec<Value>,
+pub struct VM {
+    stack: Vec<Value>,
+}
+
+impl VM {
+    pub fn new() -> VM {
+        return VM {
+            stack: Vec::with_capacity(STACK_MAX),
+        };
+    }
+
+    pub fn interpret(&mut self, source: &str) -> InterpretResult {
+        let mut chunk = Chunk::new();
+        let mut compiler = Compiler::new(source, &mut chunk);
+
+        if !compiler.compile() {
+            return InterpretResult::CompileError;
+        }
+
+        return Runner::new(&mut self.stack, &chunk).run();
+    }
 }
 
 macro_rules! binary_op {
     ($self:ident, $result_type:ident, $op:tt) => {
         {
-            let b = $self.pop();
-            let a = $self.pop();
+            let b = $self.peek(0).clone();
+            let a = $self.peek(1).clone();
 
-            $self.push(a $op b);
+            if let Value::Number(b) = b {
+                if let Value::Number(a) = a {
+                    $self.pop();
+                    $self.pop();
+
+                    $self.push(Value::$result_type(a $op b));
+                } else {
+                    // $self.runtime_error("Operands must be numbers.");
+                }
+            } else {
+                // $self.runtime_error("Operands must be numbers.");
+            }
+
         }
     };
 }
 
-impl<'a> VM<'a> {
-    // pub fn new() -> VM<'a> {
-    //     return VM {
-    //         chunk: None,
-    //         ip: None,
-    //     };
-    // }
+struct Runner<'a> {
+    stack: &'a mut Vec<Value>,
+    chunk: &'a Chunk,
+    ip: slice::Iter<'a, u8>,
+}
 
-    pub fn free(&mut self) -> () {
-
-    }
-
-    pub fn interpret(chunk: &'a Chunk) -> InterpretResult {
-        let mut vm: VM = VM {
+impl<'a> Runner<'a> {
+    pub fn new(stack: &'a mut Vec<Value>, chunk: &'a Chunk) -> Self {
+        Self {
+            stack: stack,
             chunk: chunk,
             ip: chunk.code.iter(),
-            stack: Vec::new(),
-        };
-
-        return vm.run();
-
-        // self.chunk = chunk;
-        // self.ip = self.chunk.code.iter();
-
-        // return self.run();
+        }
     }
 
     fn instruction_offset(&self) -> usize {
@@ -70,45 +87,55 @@ impl<'a> VM<'a> {
                 print!("          ");
                 for value in self.stack.iter() {
                     print!("[ ");
-                    print_value(*value);
+                    value.print();
                     print!(" ]");
                 }
                 println!("");
 
-                dissassemble_instruction(self.chunk, self.instruction_offset());
+                self.chunk.dissassemble_instruction(self.instruction_offset());
             }
 
-            let instruction: OpCode = self.read_byte();
-            match instruction {
-                OpCode::OpConstant(idx) => {
-                    let constant: Value = self.read_constant(idx);
+            let instruction: u8 = self.read_byte();
+            let op: Op = unsafe { instruction.try_into().unwrap_unchecked() };
+            match op {
+                Op::Constant => {
+                    let constant: Value = self.read_constant();
                     self.push(constant);
                 },
-                OpCode::OpAdd => binary_op!(self, Number, +),
-                OpCode::OpSubtract => binary_op!(self, Number, -),
-                OpCode::OpMultiply => binary_op!(self, Number, *),
-                OpCode::OpDivide => binary_op!(self, Number, /),
-                OpCode::OpNegate => {
-                    let value: Value = self.pop();
-                    self.push(-value);
+                Op::Add => binary_op!(self, Number, +),
+                Op::Subtract => binary_op!(self, Number, -),
+                Op::Multiply => binary_op!(self, Number, *),
+                Op::Divide => binary_op!(self, Number, /),
+                Op::Negate => {
+                    if let Value::Number(value) = self.peek(0) {
+                        *value = -*value;
+                    } else {
+                        // self.runtime_error("Operand must be a number");
+                    }
                 },
-                OpCode::OpReturn => {
-                    print_value(self.pop());
+                Op::Return => {
+                    self.pop().print();
                     println!("");
 
-                    return InterpretResult::InterpretOk
+                    return InterpretResult::Ok
                 },
-                // _ => println!("Test"),
             }
         }
     }
 
-    fn read_byte(&mut self) -> OpCode {
+    fn read_byte(&mut self) -> u8 {
         return unsafe { *self.ip.next().unwrap_unchecked() };
     }
 
-    fn read_constant(&self, constant: usize) -> Value {
-        return self.chunk.constants.values[constant];
+    fn read_constant(&mut self) -> Value {
+        return self.chunk.constants[self.read_byte() as usize];
+    }
+
+    fn peek(&mut self, index: usize) -> &mut Value {
+        unsafe {
+            let index = self.stack.len() - 1 - index;
+            return self.stack.get_unchecked_mut(index);
+        }
     }
 
     fn push(&mut self, value: Value) -> () {
