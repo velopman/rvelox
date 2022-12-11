@@ -280,7 +280,14 @@ fn make_rules() -> Vec<ParseRule> {
                 precedence: Precedence::None,
             }
         ),
-        (TokenType::String, ParseRule::default()),
+        (
+            TokenType::String,
+            ParseRule {
+                prefix: Some(|c| c.string()),
+                infix: None,
+                precedence: Precedence::None,
+            }
+        ),
         (TokenType::Identifier, ParseRule::default()),
         (TokenType::Error, ParseRule::default()),
         (TokenType::Eof, ParseRule::default()),
@@ -437,6 +444,12 @@ impl<'a> Compiler<'a> {
     fn number(&mut self) -> () {
         let value: f64 = self.parser.previous.unwrap().lexeme.parse().unwrap();
         self.emit_constant(Value::Number(value));
+    }
+
+    fn string(&mut self) -> () {
+        let lexeme: &str = self.parser.previous.unwrap().lexeme;
+        let value: String = (&lexeme[1..(lexeme.len() - 1)]).to_string();
+        self.emit_constant(Value::String(value));
     }
 
     fn unary(&mut self) -> () {

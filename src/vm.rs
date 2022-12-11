@@ -42,23 +42,39 @@ impl VM {
 macro_rules! binary_op {
     ($self:ident, $result_type:ident, $op:tt) => {
         {
-            let b = $self.peek(0).clone();
-            let a = $self.peek(1).clone();
+            // let b = $self.peek(0).clone();
+            // let a = $self.peek(1).clone();
 
-            if let Value::Number(b) = b {
-                if let Value::Number(a) = a {
-                    $self.pop();
-                    $self.pop();
+            let (b, a) = ($self.pop(), $self.pop());
 
+            match (&a, &b) {
+                (Value::Number(a), Value::Number(b)) => {
                     $self.push(Value::$result_type(a $op b));
 
                     None
-                } else {
+                }
+                _ => {
+                    $self.push(a);
+                    $self.push(b);
+
                     $self.runtime_error("Operands must be numbers.")
                 }
-            } else {
-                $self.runtime_error("Operands must be numbers.")
             }
+
+            // if let Value::Number(b) = b {
+            //     if let Value::Number(a) = a {
+            //         $self.pop();
+            //         $self.pop();
+
+            //         $self.push(Value::$result_type(a $op b));
+
+            //         None
+            //     } else {
+            //         $self.runtime_error("Operands must be numbers.")
+            //     }
+            // } else {
+            //     $self.runtime_error("Operands must be numbers.")
+            // }
 
         }
     };
@@ -127,7 +143,29 @@ impl<'a> Runner<'a> {
                 }
                 Op::Greater => binary_op!(self, Bool, >),
                 Op::Less => binary_op!(self, Bool, <),
-                Op::Add => binary_op!(self, Number, +),
+                Op::Add => {
+                    let (b, a) = (self.pop(), self.pop());
+
+                    match (&a, &b) {
+                        (Value::Number(a), Value::Number(b)) => {
+                            self.push(Value::Number(a + b));
+
+                            None
+                        },
+                        (Value::String(a), Value::String(b)) => {
+                            let value: String = format!("{a}{b}");
+                            self.push(Value::String(value));
+
+                            None
+                        },
+                        _ => {
+                            self.push(a);
+                            self.push(b);
+
+                            self.runtime_error("Operands must be numbers.")
+                        }
+                    }
+                },
                 Op::Subtract => binary_op !(self, Number, -),
                 Op::Multiply => binary_op!(self, Number, *),
                 Op::Divide => binary_op!(self, Number, /),
@@ -165,7 +203,7 @@ impl<'a> Runner<'a> {
     }
 
     fn read_constant(&mut self) -> Value {
-        return self.chunk.constants[self.read_byte() as usize];
+        return self.chunk.constants[self.read_byte() as usize].clone(); // TODO: Fix this when GC
     }
 
     fn runtime_error(&mut self, message: &str) -> Option<InterpretResult> {
