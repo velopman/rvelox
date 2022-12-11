@@ -107,36 +107,35 @@ impl<'a> Scanner<'a> {
             '*' => return self.make_token(TokenType::Star),
             '!' => (
                 if self.match_character('=') {
-                    self.make_token(TokenType::BangEqual);
+                    return self.make_token(TokenType::BangEqual);
                 } else {
-                    self.make_token(TokenType::Bang);
+                    return self.make_token(TokenType::Bang);
                 }
             ),
             '=' => (
                 if self.match_character('=') {
-                    self.make_token(TokenType::EqualEqual);
+                    return self.make_token(TokenType::EqualEqual);
                 } else {
-                    self.make_token(TokenType::Equal);
+                    return self.make_token(TokenType::Equal);
                 }
             ),
             '<' => (
                 if self.match_character('=') {
-                    self.make_token(TokenType::LessEqual);
+                    return self.make_token(TokenType::LessEqual);
                 } else {
-                    self.make_token(TokenType::Less);
+                    return self.make_token(TokenType::Less);
                 }
             ),
             '>' => (
                 if self.match_character('=') {
-                    self.make_token(TokenType::GreaterEqual);
+                    return self.make_token(TokenType::GreaterEqual);
                 } else {
-                    self.make_token(TokenType::Greater);
+                    return self.make_token(TokenType::Greater);
                 }
             ),
             '"' => return self.string(),
             _ => (),
         }
-
 
         return self.error_token("Unexpected character.");
     }

@@ -183,14 +183,58 @@ fn make_rules() -> Vec<ParseRule> {
                 precedence: Precedence::Factor,
             }
         ),
-        (TokenType::Bang, ParseRule::default()),
-        (TokenType::BangEqual, ParseRule::default()),
+        (
+            TokenType::Bang,
+            ParseRule {
+                prefix: Some(|c| c.unary()),
+                infix: None,
+                precedence: Precedence::None,
+            }
+        ),
+        (
+            TokenType::BangEqual,
+            ParseRule {
+                prefix: None,
+                infix: Some(|c| c.binary()),
+                precedence: Precedence::Equality,
+            }
+        ),
         (TokenType::Equal, ParseRule::default()),
-        (TokenType::EqualEqual, ParseRule::default()),
-        (TokenType::Less, ParseRule::default()),
-        (TokenType::LessEqual, ParseRule::default()),
-        (TokenType::Greater, ParseRule::default()),
-        (TokenType::GreaterEqual, ParseRule::default()),
+        (TokenType::EqualEqual,
+            ParseRule {
+                prefix: None,
+                infix: Some(|c| c.binary()),
+                precedence: Precedence::Equality,
+            }
+        ),
+        (TokenType::Greater,
+            ParseRule {
+                prefix: None,
+                infix: Some(|c| c.binary()),
+                precedence: Precedence::Comparison,
+            }
+        ),
+        (TokenType::GreaterEqual,
+            ParseRule {
+                prefix: None,
+                infix: Some(|c| c.binary()),
+                precedence: Precedence::Comparison,
+            }
+        ),
+        (TokenType::Less,
+            ParseRule {
+                prefix: None,
+                infix: Some(|c| c.binary()),
+                precedence: Precedence::Comparison,
+            }
+        ),
+        (TokenType::LessEqual,
+            ParseRule {
+                prefix: None,
+                infix: Some(|c| c.binary()),
+                precedence: Precedence::Comparison,
+            }
+        ),
         (TokenType::Var, ParseRule::default()),
         (TokenType::Fun, ParseRule::default()),
         (TokenType::Class, ParseRule::default()),
@@ -204,9 +248,30 @@ fn make_rules() -> Vec<ParseRule> {
         (TokenType::Print, ParseRule::default()),
         (TokenType::And, ParseRule::default()),
         (TokenType::Or, ParseRule::default()),
-        (TokenType::True, ParseRule::default()),
-        (TokenType::False, ParseRule::default()),
-        (TokenType::Nil, ParseRule::default()),
+        (
+            TokenType::True,
+            ParseRule {
+                prefix: Some(|c| c.literal()),
+                infix: None,
+                precedence: Precedence::None,
+            }
+        ),
+        (
+            TokenType::False,
+            ParseRule {
+                prefix: Some(|c| c.literal()),
+                infix: None,
+                precedence: Precedence::None,
+            }
+        ),
+        (
+            TokenType::Nil,
+            ParseRule {
+                prefix: Some(|c| c.literal()),
+                infix: None,
+                precedence: Precedence::None,
+            }
+        ),
         (
             TokenType::Number,
             ParseRule {
@@ -255,6 +320,21 @@ impl<'a> Compiler<'a> {
         self.parse_precedence((rule.precedence as usize + 1).try_into().unwrap());
 
         match operator_type {
+            TokenType::BangEqual => {
+                self.emit_op(Op::Equal);
+                self.emit_op(Op::Not);
+            },
+            TokenType::EqualEqual => self.emit_op(Op::Equal),
+            TokenType::Greater => self.emit_op(Op::Greater),
+            TokenType::GreaterEqual => {
+                self.emit_op(Op::Less);
+                self.emit_op(Op::Not);
+            },
+            TokenType::Less => self.emit_op(Op::Less),
+            TokenType::LessEqual => {
+                self.emit_op(Op::Greater);
+                self.emit_op(Op::Not);
+            },
             TokenType::Plus => self.emit_op(Op::Add),
             TokenType::Minus => self.emit_op(Op::Subtract),
             TokenType::Star => self.emit_op(Op::Multiply),
@@ -307,6 +387,15 @@ impl<'a> Compiler<'a> {
         self.parser.consume(TokenType::RightParen, "Expect ')' after expression.");
     }
 
+    fn literal(&mut self) -> () {
+        match self.parser.previous.unwrap().token_type {
+            TokenType::False => self.emit_op(Op::False),
+            TokenType::Nil => self.emit_op(Op::Nil),
+            TokenType::True => self.emit_op(Op::True),
+            _ => (),
+        }
+    }
+
     fn make_constant(&mut self, value: Value) -> u8 {
         let constant = self.current_chunk.add_constant(value);
 
@@ -356,6 +445,7 @@ impl<'a> Compiler<'a> {
         self.parse_precedence(Precedence::Unary);
 
         match operator_type {
+            TokenType::Bang => self.emit_op(Op::Not),
             TokenType::Minus => self.emit_op(Op::Negate),
             _ => (),
         }

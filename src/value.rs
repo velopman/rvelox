@@ -1,4 +1,4 @@
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum Value {
     Nil,
     Bool(bool),
@@ -11,6 +11,14 @@ impl Value {
             Value::Nil => print!("nil"),
             Value::Bool(value) => print!("{value}"),
             Value::Number(value) => print!("{value}"),
+        }
+    }
+
+    pub fn is_falsy(&self) -> bool {
+        match self {
+            Value::Bool(value) => !value,
+            Value::Nil => true,
+            _ => false,
         }
     }
 }

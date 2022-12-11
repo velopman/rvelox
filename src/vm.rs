@@ -51,11 +51,13 @@ macro_rules! binary_op {
                     $self.pop();
 
                     $self.push(Value::$result_type(a $op b));
+
+                    None
                 } else {
-                    // $self.runtime_error("Operands must be numbers.");
+                    $self.runtime_error("Operands must be numbers.")
                 }
             } else {
-                // $self.runtime_error("Operands must be numbers.");
+                $self.runtime_error("Operands must be numbers.")
             }
 
         }
@@ -97,28 +99,63 @@ impl<'a> Runner<'a> {
 
             let instruction: u8 = self.read_byte();
             let op: Op = unsafe { instruction.try_into().unwrap_unchecked() };
-            match op {
+            let result: Option<InterpretResult> = match op {
                 Op::Constant => {
                     let constant: Value = self.read_constant();
                     self.push(constant);
+                    None
                 },
+                Op::Nil => {
+                    self.push(Value::Nil);
+                    None
+                }
+                Op::True => {
+                    self.push(Value::Bool(true));
+                    None
+                }
+                Op::False => {
+                    self.push(Value::Bool(false));
+                    None
+                }
+                Op::Equal => {
+                    let a: Value = self.pop();
+                    let b: Value = self.pop();
+
+                    self.push(Value::Bool(a == b));
+
+                    None
+                }
+                Op::Greater => binary_op!(self, Bool, >),
+                Op::Less => binary_op!(self, Bool, <),
                 Op::Add => binary_op!(self, Number, +),
-                Op::Subtract => binary_op!(self, Number, -),
+                Op::Subtract => binary_op !(self, Number, -),
                 Op::Multiply => binary_op!(self, Number, *),
                 Op::Divide => binary_op!(self, Number, /),
+                Op::Not => {
+                    let value = self.peek(0);
+                    *value = Value::Bool(value.is_falsy());
+
+                    None
+                }
                 Op::Negate => {
-                    if let Value::Number(value) = self.peek(0) {
-                        *value = -*value;
-                    } else {
-                        // self.runtime_error("Operand must be a number");
+                    match self.peek(0) {
+                        Value::Number(value) => {
+                            *value = -*value;
+                            None
+                        },
+                        _ => self.runtime_error("Operand must be a number"),
                     }
                 },
                 Op::Return => {
                     self.pop().print();
                     println!("");
 
-                    return InterpretResult::Ok
+                    Some(InterpretResult::Ok)
                 },
+            };
+
+            if let Some(result) = result {
+                return result;
             }
         }
     }
@@ -131,9 +168,22 @@ impl<'a> Runner<'a> {
         return self.chunk.constants[self.read_byte() as usize];
     }
 
-    fn peek(&mut self, index: usize) -> &mut Value {
+    fn runtime_error(&mut self, message: &str) -> Option<InterpretResult> {
+        eprintln!("{message}");
+
+        let instruction: usize = self.instruction_offset() - 1;
+        let line: usize = self.chunk.lines[instruction];
+
+        eprintln!("[line {line}] in script");
+
+        self.stack.clear();
+
+        return Some(InterpretResult::RuntimeError);
+    }
+
+    fn peek(&mut self, distance: usize) -> &mut Value {
         unsafe {
-            let index = self.stack.len() - 1 - index;
+            let index: usize = self.stack.len() - 1 - distance;
             return self.stack.get_unchecked_mut(index);
         }
     }
