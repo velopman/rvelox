@@ -7,6 +7,10 @@ pub enum Op {
     Nil,
     True,
     False,
+    Pop,
+    GetGlobal,
+    DefineGlobal,
+    SetGlobal,
     Equal,
     Greater,
     Less,
@@ -16,6 +20,7 @@ pub enum Op {
     Divide,
     Not,
     Negate,
+    Print,
     Return,
 }
 
@@ -34,6 +39,10 @@ impl TryFrom<u8> for Op {
             x if x == Op::Nil as u8 => Op::Nil,
             x if x == Op::True as u8 => Op::True,
             x if x == Op::False as u8 => Op::False,
+            x if x == Op::Pop as u8 => Op::Pop,
+            x if x == Op::GetGlobal as u8 => Op::GetGlobal,
+            x if x == Op::DefineGlobal as u8 => Op::DefineGlobal,
+            x if x == Op::SetGlobal as u8 => Op::SetGlobal,
             x if x == Op::Equal as u8 => Op::Equal,
             x if x == Op::Greater as u8 => Op::Greater,
             x if x == Op::Less as u8 => Op::Less,
@@ -43,6 +52,7 @@ impl TryFrom<u8> for Op {
             x if x == Op::Divide as u8 => Op::Divide,
             x if x == Op::Not as u8 => Op::Not,
             x if x == Op::Negate as u8 => Op::Negate,
+            x if x == Op::Print as u8 => Op::Print,
             x if x == Op::Return as u8 => Op::Return,
             _ => return Err(()),
         })

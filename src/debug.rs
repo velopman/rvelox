@@ -32,6 +32,10 @@ impl Chunk {
                 Op::Nil => self.simple_instruction("OP_NIL", offset),
                 Op::True => self.simple_instruction("OP_TRUE", offset),
                 Op::False => self.simple_instruction("OP_FALSE", offset),
+                Op::Pop => self.simple_instruction("OP_POP", offset),
+                Op::GetGlobal => self.constant_instruction("OP_GET_GLOBAL", offset),
+                Op::DefineGlobal => self.constant_instruction("OP_DEFINE_GLOBAL", offset),
+                Op::SetGlobal => self.constant_instruction("OP_SET_GLOBAL", offset),
                 Op::Equal => self.simple_instruction("OP_EQUAL", offset),
                 Op::Greater => self.simple_instruction("OP_GREATER", offset),
                 Op::Less => self.simple_instruction("OP_LESS", offset),
@@ -41,6 +45,7 @@ impl Chunk {
                 Op::Divide => self.simple_instruction("OP_DIVIDE", offset),
                 Op::Not => self.simple_instruction("OP_NOT", offset),
                 Op::Negate => self.simple_instruction("OP_NEGATE", offset),
+                Op::Print => self.simple_instruction("OP_PRINT", offset),
                 Op::Return => self.simple_instruction("OP_RETURN", offset),
             },
             _ => {

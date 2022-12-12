@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     convert::TryInto,
     slice
 };
@@ -42,9 +43,6 @@ impl VM {
 macro_rules! binary_op {
     ($self:ident, $result_type:ident, $op:tt) => {
         {
-            // let b = $self.peek(0).clone();
-            // let a = $self.peek(1).clone();
-
             let (b, a) = ($self.pop(), $self.pop());
 
             match (&a, &b) {
@@ -61,21 +59,6 @@ macro_rules! binary_op {
                 }
             }
 
-            // if let Value::Number(b) = b {
-            //     if let Value::Number(a) = a {
-            //         $self.pop();
-            //         $self.pop();
-
-            //         $self.push(Value::$result_type(a $op b));
-
-            //         None
-            //     } else {
-            //         $self.runtime_error("Operands must be numbers.")
-            //     }
-            // } else {
-            //     $self.runtime_error("Operands must be numbers.")
-            // }
-
         }
     };
 }
@@ -84,6 +67,7 @@ struct Runner<'a> {
     stack: &'a mut Vec<Value>,
     chunk: &'a Chunk,
     ip: slice::Iter<'a, u8>,
+    globals: HashMap<String, Value>,
 }
 
 impl<'a> Runner<'a> {
@@ -92,6 +76,7 @@ impl<'a> Runner<'a> {
             stack: stack,
             chunk: chunk,
             ip: chunk.code.iter(),
+            globals: HashMap::new(),
         }
     }
 
@@ -128,11 +113,51 @@ impl<'a> Runner<'a> {
                 Op::True => {
                     self.push(Value::Bool(true));
                     None
-                }
+                },
                 Op::False => {
                     self.push(Value::Bool(false));
                     None
-                }
+                },
+                Op::Pop => {
+                    self.pop();
+                    None
+                },
+                Op::GetGlobal => {
+                    if let Value::String(name) = self.read_constant() {
+                        match self.globals.get(&name) {
+                            Some(value) => {
+                                self.push(value.clone()); // TODO: Why clone?
+
+                                None
+                            },
+                            None => self.runtime_error("Undefined variable '{name}'."),
+                        }
+                    } else {
+                        None
+                    }
+                },
+                Op::DefineGlobal => {
+                    if let Value::String(name) = self.read_constant() {
+                        let value: Value = self.pop();
+                        self.globals.insert(name, value); // TODO: This may cause problems
+                    };
+
+                    None
+                },
+                Op::SetGlobal => {
+                    if let Value::String(name) = self.read_constant() {
+                        if self.globals.contains_key(&name) {
+                            self.runtime_error("Undefined variable '{name}'.")
+                        } else {
+                            let value: Value = self.peek(0).clone();
+                            self.globals.insert(name, value); // TODO: This may cause problems
+
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                },
                 Op::Equal => {
                     let a: Value = self.pop();
                     let b: Value = self.pop();
@@ -140,7 +165,7 @@ impl<'a> Runner<'a> {
                     self.push(Value::Bool(a == b));
 
                     None
-                }
+                },
                 Op::Greater => binary_op!(self, Bool, >),
                 Op::Less => binary_op!(self, Bool, <),
                 Op::Add => {
@@ -175,6 +200,15 @@ impl<'a> Runner<'a> {
 
                     None
                 }
+                Op::Print => {
+                    let value: Value = self.pop();
+
+                    value.print();
+                    println!("");
+
+                    None
+
+                }
                 Op::Negate => {
                     match self.peek(0) {
                         Value::Number(value) => {
@@ -185,9 +219,6 @@ impl<'a> Runner<'a> {
                     }
                 },
                 Op::Return => {
-                    self.pop().print();
-                    println!("");
-
                     Some(InterpretResult::Ok)
                 },
             };
