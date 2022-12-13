@@ -1,9 +1,11 @@
-#[derive(Clone, PartialEq)]
+use object::ObjRef;
+
+#[derive(Clone, Copy, PartialEq)]
 pub enum Value {
     Nil,
     Bool(bool),
     Number(f64),
-    String(String),
+    String(ObjRef<String>),
 }
 
 impl Value {
@@ -12,7 +14,7 @@ impl Value {
             Value::Nil => print!("nil"),
             Value::Bool(value) => print!("{value}"),
             Value::Number(value) => print!("{value}"),
-            Value::String(value) => print!("{value}"),
+            Value::String(reference) => print!("Some String"), // TODO: Update to support lookups
         }
     }
 
